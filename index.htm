@@ -146,15 +146,11 @@
 
         // Device Orientation (Tilt)
         window.addEventListener("deviceorientation", (e) => {
-          // beta is tilt front/back, gamma is tilt left/right
-          // We want gamma for rotation (assuming landscape or portrait)
           let g = e.gamma;
           if (window.innerHeight > window.innerWidth) {
-            // Portrait: gamma is left/right tilt [-90, 90]
-            tiltAngle = clamp(g / 30, -1, 1); // Sensitivity
+            tiltAngle = -clamp(g / 30, -1, 1); // Inverted per user request
           } else {
-            // Landscape: beta might be more appropriate depending on orientation
-            tiltAngle = clamp(e.beta / 30, -1, 1);
+            tiltAngle = -clamp(e.beta / 30, -1, 1);
           }
         });
       }
@@ -508,41 +504,37 @@
 
       // --- Physics / collision
       function checkCollisionAndLanding() {
-        const footOffset = 16;
-        const footX = lander.x + Math.sin(lander.angle) * footOffset;
-        const footY = lander.y + Math.cos(lander.angle) * footOffset;
+        const checkPoint = (lx, ly) => {
+          const px = lander.x + lx * Math.cos(lander.angle) - ly * Math.sin(lander.angle);
+          const py = lander.y + lx * Math.sin(lander.angle) + ly * Math.cos(lander.angle);
+          const gy = getTerrainY(terrain, clamp(px, 0, W));
+          return { px, py, gy, impact: py >= gy };
+        };
 
-        const groundY = getTerrainY(terrain, clamp(footX, 0, W));
-        if (footY >= groundY) {
-          const slope = getTerrainSlopeAngle(terrain, clamp(footX, 0, W));
+        const pts = [checkPoint(0, 16), checkPoint(-12, 12), checkPoint(12, 12)];
+        const p = pts.find(pt => pt.impact);
 
+        if (p) {
+          const slope = getTerrainSlopeAngle(terrain, clamp(p.px, 0, W));
           const scale = H / 540;
           const okVy = Math.abs(lander.vy) <= SAFE_VY * scale;
           const okVx = Math.abs(lander.vx) <= SAFE_VX * scale;
-
           const angleDiff = normalizeAngle(lander.angle - slope);
           const okAngle = Math.abs(angleDiff) <= SAFE_ANGLE;
 
           if (okVy && okVx && okAngle) {
             lander.landed = true;
             lander.alive = true;
-
-            // Stick to surface
-            lander.y -= (footY - groundY) + 0.5;
+            lander.y -= (p.py - p.gy) + 0.5;
             lander.vx = 0; lander.vy = 0;
-
-            showMessage(winLines[(Math.random() * winLines.length) | 0], "Press R for a new level (new hills)");
+            showMessage(winLines[(Math.random() * winLines.length) | 0], "Tap screen or press R to restart");
           } else {
-            // Crash -> explode
             lander.alive = false;
             lander.landed = false;
-
-            // snap to impact point for better explosion placement
-            lander.y -= (footY - groundY) + 0.5;
+            lander.y -= (p.py - p.gy) + 0.5;
             explodeAt(lander.x, lander.y, lander.vx, lander.vy);
-
             const why = (!okVy || !okVx) ? "Too fast." : "Not level.";
-            showMessage(`${crashLines[(Math.random() * crashLines.length) | 0]} (${why})`, "Press R to retry (new hills)");
+            showMessage(`${crashLines[(Math.random() * crashLines.length) | 0]} (${why})`, "Tap screen or press R to retry");
           }
         }
       }

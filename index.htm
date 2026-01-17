@@ -96,17 +96,12 @@
 
       // --- Resize (responsive)
       function resize() {
-        const dpr = Math.min(2, window.devicePixelRatio || 1); // Limit DPR for performance with glow
+        const dpr = Math.min(2, window.devicePixelRatio || 1);
         W = window.innerWidth;
         H = window.innerHeight;
         canvas.width = W * dpr;
         canvas.height = H * dpr;
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        if (terrain.length > 0) {
-          // Regeneration on resize might be jarring, but stretching is worse. 
-          // For now, let's just make sure W and H are updated globally.
-          // Ideally we'd scale terrain, but let's see how it feels.
-        }
       }
       window.addEventListener("resize", resize);
       resize();
@@ -126,15 +121,24 @@
         window.addEventListener("keyup", (e) => keys.delete(e.code));
 
         // Touch controls
-        canvas.addEventListener("touchstart", (e) => {
+        window.addEventListener("touchstart", (e) => {
+          if (e.target === startBtn) return;
           e.preventDefault();
           if (lander && lander.alive && !lander.landed) touchThrust = true;
           if (message) startNewLevel();
         }, { passive: false });
-        canvas.addEventListener("touchend", (e) => {
-          e.preventDefault();
+        window.addEventListener("touchend", (e) => {
           touchThrust = false;
-        }, { passive: false });
+        });
+        // Mouse for desktop test of touch logic
+        window.addEventListener("mousedown", (e) => {
+          if (e.target === startBtn) return;
+          if (lander && lander.alive && !lander.landed) touchThrust = true;
+          if (message) startNewLevel();
+        });
+        window.addEventListener("mouseup", (e) => {
+          touchThrust = false;
+        });
 
         // Device Orientation (Tilt)
         window.addEventListener("deviceorientation", (e) => {
@@ -222,54 +226,41 @@
         }
 
         const out = [];
-        for (let i = 0; i <= segments; i++) out.push({ x: (i / segments) * W, y: pts[i] });
+        for (let i = 0; i <= segments; i++) out.push({ xf: i / segments, yf: pts[i] / H });
 
         // Create landing pads
-        const numPads = Math.floor(rand(2, 4 + W / 400)); // More pads on wider screens
-        const minPadSpacing = Math.max(100, W / 10);
+        const numPads = Math.floor(rand(2, 5));
         const pads = [];
 
-        for (let attempt = 0; attempt < numPads * 10 && pads.length < numPads; attempt++) {
-          const padW = rand(60, 140);
-          const padX = rand(80, W - 80 - padW);
+        for (let attempt = 0; attempt < 30 && pads.length < numPads; attempt++) {
+          const padWF = rand(0.06, 0.12);
+          const padXF = rand(0.1, 0.9 - padWF);
 
-          // Check if this pad is far enough from existing pads
-          let tooClose = false;
-          for (const existingPad of pads) {
-            if (Math.abs(existingPad.x - padX) < minPadSpacing || Math.abs((existingPad.x + existingPad.width) - padX) < minPadSpacing || Math.abs(existingPad.x - (padX + padW)) < minPadSpacing) {
-              tooClose = true;
-              break;
-            }
+          const yTargetF = getTerrainY(out, padXF * W) / H;
+          for (const p of out) {
+            if (p.xf >= padXF && p.xf <= padXF + padWF) p.yf = yTargetF;
           }
-
-          if (!tooClose) {
-            const yTarget = getTerrainY(out, padX + padW / 2);
-            for (const p of out) if (p.x >= padX && p.x <= padX + padW) p.y = yTarget;
-            pads.push({ x: padX, width: padW });
-          }
+          pads.push({ xf: padXF, wf: padWF });
         }
 
         return out;
       }
 
-      function getTerrainSegmentIndex(terr, x) {
-        const n = terr.length;
-        const t = clamp(x, 0, W - 0.001);
-        const step = W / (n - 1);
-        return clamp(Math.floor(t / step), 0, n - 2);
-      }
-
       function getTerrainY(terr, x) {
-        const i = getTerrainSegmentIndex(terr, x);
+        const xf = clamp(x, 0, W - 0.001) / W;
+        const n = terr.length;
+        const i = clamp(Math.floor(xf * (n - 1)), 0, n - 2);
         const a = terr[i], b = terr[i + 1];
-        const t = (x - a.x) / (b.x - a.x);
-        return a.y + (b.y - a.y) * t;
+        const t = (xf - a.xf) / (b.xf - a.xf);
+        return (a.yf + (b.yf - a.yf) * t) * H;
       }
 
       function getTerrainSlopeAngle(terr, x) {
-        const i = getTerrainSegmentIndex(terr, x);
+        const xf = clamp(x, 0, W - 0.001) / W;
+        const n = terr.length;
+        const i = clamp(Math.floor(xf * (n - 1)), 0, n - 2);
         const a = terr[i], b = terr[i + 1];
-        return Math.atan2(b.y - a.y, b.x - a.x);
+        return Math.atan2((b.yf - a.yf) * H, (b.xf - a.xf) * W);
       }
 
       function normalizeAngle(a) {
@@ -348,21 +339,22 @@
       }
 
       function drawTerrain() {
+        if (!terrain || terrain.length === 0) return;
         ctx.strokeStyle = GREEN;
         ctx.lineWidth = 2;
         ctx.shadowBlur = 12;
         ctx.shadowColor = GREEN;
         ctx.beginPath();
-        ctx.moveTo(terrain[0].x, terrain[0].y);
-        for (let i = 1; i < terrain.length; i++) ctx.lineTo(terrain[i].x, terrain[i].y);
+        ctx.moveTo(terrain[0].xf * W, terrain[0].yf * H);
+        for (let i = 1; i < terrain.length; i++) ctx.lineTo(terrain[i].xf * W, terrain[i].yf * H);
         ctx.stroke();
 
-        ctx.shadowBlur = 0; // Disable glow for filled area
+        ctx.shadowBlur = 0;
         ctx.fillStyle = DIM;
         ctx.beginPath();
         ctx.moveTo(0, H);
-        ctx.lineTo(terrain[0].x, terrain[0].y);
-        for (let i = 1; i < terrain.length; i++) ctx.lineTo(terrain[i].x, terrain[i].y);
+        ctx.lineTo(terrain[0].xf * W, terrain[0].yf * H);
+        for (let i = 1; i < terrain.length; i++) ctx.lineTo(terrain[i].xf * W, terrain[i].yf * H);
         ctx.lineTo(W, H);
         ctx.closePath();
         ctx.fill();
@@ -404,7 +396,7 @@
         ctx.stroke();
 
         // Thrust flame
-        const thrusting = keys.has("Space") && lander.fuel > 0 && lander.alive && !lander.landed && !paused;
+        const thrusting = (keys.has("Space") || touchThrust) && lander.fuel > 0 && lander.alive && !lander.landed && !paused;
         if (thrusting) {
           ctx.strokeStyle = "#B6FFB6";
           ctx.shadowBlur = 15;
@@ -524,7 +516,7 @@
 
       // --- Update
       function update() {
-        if (paused) return;
+        if (paused || !lander) return;
 
         // Update shards even when dead
         if (shards.length) {
@@ -583,8 +575,8 @@
         clear();
         drawTerrain();
         drawShards();
-        drawLander();
-        drawHUD();
+        if (lander) drawLander();
+        if (lander) drawHUD();
         drawMessage();
       }
 

@@ -108,7 +108,7 @@
 
       // --- Input
       const keys = new Set();
-      let touchThrust = false;
+      let touchThrust = 0; // Use a counter to make it linger for visibility
       let tiltAngle = 0;
 
       function handleInput() {
@@ -124,20 +124,20 @@
         window.addEventListener("touchstart", (e) => {
           if (e.target === startBtn) return;
           e.preventDefault();
-          if (lander && lander.alive && !lander.landed) touchThrust = true;
+          if (lander && lander.alive && !lander.landed) touchThrust = 1;
           if (message) startNewLevel();
         }, { passive: false });
         window.addEventListener("touchend", (e) => {
-          touchThrust = false;
+          touchThrust = 0;
         });
         // Mouse for desktop test of touch logic
         window.addEventListener("mousedown", (e) => {
           if (e.target === startBtn) return;
-          if (lander && lander.alive && !lander.landed) touchThrust = true;
+          if (lander && lander.alive && !lander.landed) touchThrust = 1;
           if (message) startNewLevel();
         });
         window.addEventListener("mouseup", (e) => {
-          touchThrust = false;
+          touchThrust = 0;
         });
 
         // Device Orientation (Tilt)
@@ -396,15 +396,17 @@
         ctx.stroke();
 
         // Thrust flame
-        const thrusting = (keys.has("Space") || touchThrust) && lander.fuel > 0 && lander.alive && !lander.landed && !paused;
-        if (thrusting) {
+        const isThrusting = (keys.has("Space") || touchThrust > 0) && lander.fuel > 0 && lander.alive && !lander.landed && !paused;
+        if (isThrusting) {
           ctx.strokeStyle = "#B6FFB6";
-          ctx.shadowBlur = 15;
+          ctx.lineWidth = 3; // Thicker flame
+          ctx.shadowBlur = 20;
           ctx.shadowColor = "#B6FFB6";
           ctx.beginPath();
-          ctx.moveTo(0, 12);
-          ctx.lineTo(rand(-3, 3), 22 + rand(0, 6));
+          ctx.moveTo(0, 10); // Start closer to hull
+          ctx.lineTo(rand(-4, 4), 28 + rand(0, 8)); // Longer flame
           ctx.stroke();
+          ctx.lineWidth = 2; // Reset
         }
 
         ctx.restore();
@@ -548,7 +550,7 @@
 
         lander.angle = normalizeAngle(lander.angle);
 
-        const thrusting = (keys.has("Space") || touchThrust) && lander.fuel > 0;
+        const thrusting = (keys.has("Space") || touchThrust > 0) && lander.fuel > 0;
         if (thrusting) {
           const ax = Math.sin(lander.angle) * THRUST;
           const ay = -Math.cos(lander.angle) * THRUST;

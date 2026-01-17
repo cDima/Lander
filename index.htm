@@ -83,7 +83,7 @@
     <button id="startBtn">START MISSION</button>
   </div>
   <canvas id="c"></canvas>
-  <div class="hint">←/→ rotate • SPACE thrust • R retry • ESC pause</div>
+  <div id="hint" class="hint">←/→ rotate • SPACE thrust • R retry • ESC pause</div>
 
   <script>
     (() => {
@@ -123,6 +123,12 @@
           if (e.code === "KeyR") startNewLevel();
         });
         window.addEventListener("keyup", (e) => keys.delete(e.code));
+
+        const hint = document.getElementById("hint");
+        const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+        if (isTouch) {
+          hint.innerHTML = "TILT to rotate • TOUCH to thrust • TAP to retry";
+        }
 
         // Touch controls
         window.addEventListener("touchstart", (e) => {

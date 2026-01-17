@@ -208,10 +208,10 @@
       function generateTerrain() {
         const segments = 128; // Power of 2 required
         const pts = new Array(segments + 1);
-        const base = H * 0.78;
+        const base = H * 0.68;
 
-        pts[0] = base + rand(-H * 0.1, H * 0.1);
-        pts[segments] = base + rand(-H * 0.1, H * 0.1);
+        pts[0] = base + rand(-H * 0.08, H * 0.08);
+        pts[segments] = base + rand(-H * 0.08, H * 0.08);
 
         let step = segments;
         let rough = H * 0.25;
@@ -226,7 +226,7 @@
           rough *= 0.53;
         }
 
-        for (let i = 0; i < pts.length; i++) pts[i] = clamp(pts[i], H * 0.45, H * 0.92);
+        for (let i = 0; i < pts.length; i++) pts[i] = clamp(pts[i], H * 0.35, H * 0.85);
         for (let pass = 0; pass < 2; pass++) {
           for (let i = 1; i < pts.length - 1; i++) pts[i] = (pts[i - 1] + pts[i] + pts[i + 1]) / 3;
         }

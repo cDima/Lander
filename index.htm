@@ -204,24 +204,24 @@
 
       // --- Terrain generation (midpoint displacement)
       function generateTerrain() {
-        const segments = Math.max(64, Math.floor(W / 12)); // Responsive segments
+        const segments = 128; // Power of 2 required
         const pts = new Array(segments + 1);
         const base = H * 0.78;
 
-        pts[0] = base + rand(-40, 40);
-        pts[segments] = base + rand(-40, 40);
+        pts[0] = base + rand(-H * 0.1, H * 0.1);
+        pts[segments] = base + rand(-H * 0.1, H * 0.1);
 
         let step = segments;
-        let rough = 140;
+        let rough = H * 0.25;
         while (step > 1) {
           for (let i = 0; i < segments; i += step) {
-            const mid = i + step / 2;
+            const mid = Math.floor(i + step / 2);
             const a = pts[i];
             const b = pts[i + step];
             pts[mid] = (a + b) / 2 + rand(-rough, rough);
           }
           step /= 2;
-          rough *= 0.55;
+          rough *= 0.53;
         }
 
         for (let i = 0; i < pts.length; i++) pts[i] = clamp(pts[i], H * 0.45, H * 0.92);
@@ -469,19 +469,40 @@
         if (paused) ctx.fillText("PAUSED", 12, 10 + fontSize * 5.0);
       }
 
+      function wrapText(text, x, y, maxWidth, lineHeight) {
+        const words = text.split(' ');
+        let line = '';
+        let testY = y;
+        for (let n = 0; n < words.length; n++) {
+          const testLine = line + words[n] + ' ';
+          const metrics = ctx.measureText(testLine);
+          const testWidth = metrics.width;
+          if (testWidth > maxWidth && n > 0) {
+            ctx.fillText(line, x, testY);
+            line = words[n] + ' ';
+            testY += lineHeight;
+          } else {
+            line = testLine;
+          }
+        }
+        ctx.fillText(line, x, testY);
+        return testY + lineHeight;
+      }
+
       function drawMessage() {
         if (!message) return;
         const titleSize = Math.max(16, Math.min(24, W / 20));
         const subSize = Math.max(12, Math.min(16, W / 30));
+        const padding = 20;
 
         ctx.fillStyle = GREEN;
         ctx.textAlign = "center";
 
         ctx.font = `${titleSize}px ui-monospace, monospace`;
-        ctx.fillText(message.text, W / 2, H * 0.32);
+        const nextY = wrapText(message.text, W / 2, H * 0.32, W - padding * 2, titleSize * 1.4);
 
         ctx.font = `${subSize}px ui-monospace, monospace`;
-        ctx.fillText(message.sub, W / 2, H * 0.32 + titleSize + 10);
+        wrapText(message.sub, W / 2, nextY + 10, W - padding * 2, subSize * 1.4);
         ctx.textAlign = "start";
       }
 
@@ -495,8 +516,9 @@
         if (footY >= groundY) {
           const slope = getTerrainSlopeAngle(terrain, clamp(footX, 0, W));
 
-          const okVy = Math.abs(lander.vy) <= SAFE_VY;
-          const okVx = Math.abs(lander.vx) <= SAFE_VX;
+          const scale = H / 540;
+          const okVy = Math.abs(lander.vy) <= SAFE_VY * scale;
+          const okVx = Math.abs(lander.vx) <= SAFE_VX * scale;
 
           const angleDiff = normalizeAngle(lander.angle - slope);
           const okAngle = Math.abs(angleDiff) <= SAFE_ANGLE;
@@ -559,16 +581,18 @@
 
         lander.angle = normalizeAngle(lander.angle);
 
+        const scale = H / 540; // Reference height scale
+
         const thrusting = (keys.has("Space") || touchThrust > 0) && lander.fuel > 0;
         if (thrusting) {
-          const ax = Math.sin(lander.angle) * THRUST;
-          const ay = -Math.cos(lander.angle) * THRUST;
+          const ax = Math.sin(lander.angle) * THRUST * scale;
+          const ay = -Math.cos(lander.angle) * THRUST * scale;
           lander.vx += ax;
           lander.vy += ay;
           lander.fuel = Math.max(0, lander.fuel - FUEL_BURN);
         }
 
-        lander.vy += GRAVITY;
+        lander.vy += GRAVITY * scale;
 
         lander.x += lander.vx;
         lander.y += lander.vy;
